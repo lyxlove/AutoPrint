@@ -89,43 +89,48 @@ namespace AutoPrint
                     string strPrinterName = (string)obj;
                     if (!string.IsNullOrEmpty(strPrinterName))
                     {
-                        string strSearchSql = "SELECT Top 1 A.JCLSH,A.Z_PD,A.JYLBDH, A.ID AS PrintId  FROM RESULT_VEHICLE_INFO A WHERE A.ID NOT IN (SELECT DISPATCH_ID FROM PRINT_RECORD) ORDER BY A.ID DESC";
+                        string strSearchSql = "SELECT Top 1 A.JCLSH,A.Z_PD,A.JYLBDH, A.ID AS PrintId  FROM RESULT_VEHICLE_INFO A WHERE  A.IsUpload = 1 AND  A.ID NOT IN (SELECT DISPATCH_ID FROM PRINT_RECORD) ORDER BY A.ID DESC";
                         DataTable dtSearch = new DataTable();
                         DbHelper.GetTable(strSearchSql, ref dtSearch);
                         PrinterDataEntity dataEnity = FillTools.FillEntity<PrinterDataEntity>(dtSearch);
                         if (dataEnity != null && dataEnity.PrintId > 0)
                         {
-                            WriteLog("查询到代打印数据:" + dataEnity.JCLSH);
+                            WriteLog("查询到代打印数据:" + dataEnity.ToString());
                             string strInsertSql = string.Format("INSERT INTO PRINT_RECORD (DISPATCH_ID, JCLSH) VALUES({0},'{1}')", dataEnity.PrintId, dataEnity.JCLSH);
                             if (DbHelper.ExecuteSql(strInsertSql))
                             {
                                 if ( dataEnity.JYLBDH == "01,"  && dataEnity.Z_PD == 1)
                                 {
-                                    WriteLog(string.Format("{0} 打印【报告单】", dataEnity.JCLSH));
-                                    PrintBGD(dataEnity.PrintId, strPrinterName);
-                                    WriteLog(string.Format("{0} 打印【仪器】", dataEnity.JCLSH));
+                                    WriteLog(string.Format("定检：{0} 打印【仪器】", dataEnity.JCLSH));
                                     PrintYQ(dataEnity.PrintId, strPrinterName);
+
+                                    WriteLog(string.Format("定检：{0} 打印【报告单】", dataEnity.JCLSH));
+                                    PrintBGD(dataEnity.PrintId, strPrinterName);
+                                    
                                 }
                                 else if (dataEnity.JYLBDH == "02," && dataEnity.Z_PD == 1)
                                 {
-                                    WriteLog(string.Format("{0} 打印【报告单】", dataEnity.JCLSH));
+                                    WriteLog(string.Format("新车：{0} 打印【报告单】", dataEnity.JCLSH));
                                     PrintBGD(dataEnity.PrintId, strPrinterName);
-                                    WriteLog(string.Format("{0} 打印【仪器】", dataEnity.JCLSH));
+                                    WriteLog(string.Format("新车：{0} 打印【仪器】", dataEnity.JCLSH));
                                     PrintYQ(dataEnity.PrintId, strPrinterName);
                                 }
                                 else if (dataEnity.JYLBDH == "02," && dataEnity.Z_PD == 2)
                                 {
-                                    WriteLog(string.Format("{0} 打印【仪器】", dataEnity.JCLSH));
+                                    WriteLog(string.Format("新车：{0} 打印【仪器】", dataEnity.JCLSH));
                                     PrintYQ(dataEnity.PrintId, strPrinterName);
                                 }
                             }
                         }
                     }
+
+                    Thread.Sleep(10000);
                 }
             }
             catch (Exception ex)
             {
                 WriteLog(ex.Message,"Error");
+                
             }
             finally
             {
@@ -134,18 +139,47 @@ namespace AutoPrint
             
         }
 
+        private void ReStart()
+        {
+            btnStop_Click(null, null);
+            Thread.Sleep(2000);
+            btnPrint_Click(null, null);
+        }
+
         private void PrintBGD(int id, string strPrinterName)
         {
             ReportDocument rd = null;
             try
             {
+                WriteLog(string.Format("定检：{0} 加载【报告单】", id));
                 rd = bindReport.BindAJReportEx(id.ToString(), "rpt/CrystalReportAJ.rpt", false);
+                WriteLog(string.Format("定检：{0} 【报告单】绑定打印机", id));
                 rd.PrintOptions.PrinterName = strPrinterName;
+                WriteLog(string.Format("定检：{0} 打印机：{1} 【报告单】开始打印", id, strPrinterName));
                 rd.PrintToPrinter(1, false, 1, 1);
+                WriteLog(string.Format("定检：{0} 【报告单】打印完成", id));
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                //MessageBox.Show(ex.Message);
+                WriteLog(string.Format("报告单:{0}", ex.Message), "Error");
+                Thread.Sleep(1000);
+                try
+                {
+                    WriteLog("报告单:重新打印", "Error");
+                    WriteLog(string.Format("重新打印 定检：{0} 加载【报告单】", id));
+                    rd = bindReport.BindAJReportEx(id.ToString(), "rpt/CrystalReportAJ.rpt", false);
+                    WriteLog(string.Format("重新打印 定检：{0} 【报告单】绑定打印机", id));
+                    rd.PrintOptions.PrinterName = strPrinterName;
+                    WriteLog(string.Format("重新打印 定检：{0} 打印机：{1} 【报告单】开始打印", id, strPrinterName));
+                    rd.PrintToPrinter(1, false, 1, 1);
+                    WriteLog(string.Format("重新打印 定检：{0} 【报告单】打印完成", id));
+                }
+                catch (Exception e)
+                {
+                    WriteLog(string.Format("重新打印 报告单:{0}", e.Message), "Error");
+                }
+                
             }
             finally
             {
@@ -164,7 +198,7 @@ namespace AutoPrint
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                //MessageBox.Show(ex.Message);
             }
         }
 
@@ -173,13 +207,35 @@ namespace AutoPrint
             ReportDocument rd = null;
             try
             {
+                WriteLog(string.Format("定检：{0} 加载【仪器】", id));
                 rd = bindReport.BindAJYQReportEx(id.ToString(), "rpt/CrystalReportAJYQ.rpt", false);
+                WriteLog(string.Format("定检：{0} 【仪器】绑定打印机", id));
                 rd.PrintOptions.PrinterName = strPrinterName;
+                WriteLog(string.Format("定检：{0} 打印机：{1} 【仪器】开始打印", id, strPrinterName));
                 rd.PrintToPrinter(1, false, 1, 1);
+                WriteLog(string.Format("定检：{0} 【仪器】打印完成", id));
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                WriteLog(string.Format("仪器:{0}", ex.Message), "Error");
+                //MessageBox.Show(ex.Message);
+                Thread.Sleep(2000);
+                try
+                {
+                    WriteLog("仪器:重新打印", "Error");
+                    WriteLog(string.Format("重新打印 定检：{0} 加载【仪器】", id));
+                    rd = bindReport.BindAJYQReportEx(id.ToString(), "rpt/CrystalReportAJYQ.rpt", false);
+                    WriteLog(string.Format("重新打印 定检：{0} 【仪器】绑定打印机", id));
+                    rd.PrintOptions.PrinterName = strPrinterName;
+                    WriteLog(string.Format("重新打印 定检：{0} 打印机：{1} 【仪器】开始打印", id, strPrinterName));
+                    rd.PrintToPrinter(1, false, 1, 1);
+                    WriteLog(string.Format("重新打印 定检：{0} 【仪器】打印完成", id));
+                }
+                catch(Exception e)
+                {
+                    WriteLog(string.Format("重新打印 仪器:{0}", e.Message), "Error");
+                }
+
             }
             finally
             {
@@ -196,10 +252,12 @@ namespace AutoPrint
                 rd = bindReport.BindAJRGReportEx(id.ToString(), "rpt/CrystalReportAJRG_KMYD.rpt", false);
                 rd.PrintOptions.PrinterName = strPrinterName;
                 rd.PrintToPrinter(1, false, 1, 1);
+                WriteLog(string.Format("定检：{0} 【人工】打印完成", id));
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                WriteLog(string.Format("人工:{0}", ex.Message), "Error");
+                //MessageBox.Show(ex.Message);
             }
             finally
             {
